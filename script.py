@@ -4,6 +4,9 @@ import tkinter
 import time
 import serial
 
+
+serialPort = '/dev/ttyUSB0'
+
 vals = [0] * 8
 valPTAT = 0
 debug = True
@@ -18,7 +21,8 @@ class SerialThread(Thread):
         while True:
             print("Attempting to connect")
             try:
-                conn = serial.Serial('/dev/ttyUSB0', 9600)
+                global serialPort
+                conn = serial.Serial(serialPort, 9600)
                 break
             except serial.SerialException as e:
                 print("Falha a ligar: {}".format(e))
@@ -28,11 +32,13 @@ class SerialThread(Thread):
         print("Listening")
 
         while True:
+            global valPTAT
             ler = conn.readline().decode()
             ler = ler.strip()
             temp = ler.split(",")
             for i in range(8):
                 vals[i] = temp[i]
+
             valPTAT = temp[8]
 
             if debug:
@@ -68,12 +74,14 @@ class WindowThread(Thread):
         #coord = [[10, 10, 60, 60], [70, 10, 120, 60], [130, 10, 180, 60],[190, 10, 240, 60],
          #       [250, 10, 300, 60], [310, 10, 360, 60], [370, 10, 420, 60], [430, 10, 480, 60]]
 
-        for a in range(8):
-            c = coord[a]
-            tagRect = "rect"+str(a)
-            tagText = "text"+str(a)
+        for x in range(8):
+            c = coord[x]
+            tagRect = "rect"+str(x)
+            tagText = "text"+str(x)
             Canv.create_rectangle(c, fill="blue", tags=tagRect)
-            Canv.create_text((c[0]+(squareSize/2),marginSize+(squareSize/2)), text=vals[a], tags=tagText)
+            Canv.create_text((c[0]+(squareSize/2),marginSize+(squareSize/2)), text=vals[x], tags=tagText)
+
+        Canv.create_text((marginSize+(squareSize/2),(marginSize*3)+squareSize), text=valPTAT, tags="textPTAT")
 
         def ticktock():
             for x in range(8):
@@ -87,7 +95,10 @@ class WindowThread(Thread):
                 if txtItem:
                     txt_id = txtItem[0]
                     Canv.itemconfigure(txt_id, text=vals[x])
-
+            txtItem = Canv.find_withtag("textPTAT")
+            if txtItem:
+                txt_id = txtItem[0]
+                Canv.itemconfigure(txt_id, text=valPTAT)
 
             window.after(1000, ticktock)
 
