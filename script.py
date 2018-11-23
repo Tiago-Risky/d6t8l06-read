@@ -25,7 +25,7 @@ class SerialThread(Thread):
                 conn = serial.Serial(serialPort, 9600)
                 break
             except serial.SerialException as e:
-                print("Falha a ligar: {}".format(e))
+                print("Fail to connect: {}".format(e))
                 time.sleep(3)
         time.sleep(2)
 
@@ -91,7 +91,18 @@ class WindowThread(Thread):
                 txtItem = Canv.find_withtag(tagText)
                 if rectItem:
                     rect_id = rectItem[0]
-                    Canv.itemconfigure(rect_id, fill="red")
+                    valInt = int(vals[x])
+                    if 10 > valInt:
+                        Canv.itemconfigure(rect_id, fill="light cyan")
+                    elif 20 > valInt >= 10:
+                        Canv.itemconfigure(rect_id, fill="gold")
+                    elif 25 > valInt >= 20:
+                        Canv.itemconfigure(rect_id, fill="orange")
+                    elif 30 > valInt >= 25:
+                        Canv.itemconfigure(rect_id, fill="dark orange")
+                    else:
+                        Canv.itemconfigure(rect_id, fill="red")
+                
                 if txtItem:
                     txt_id = txtItem[0]
                     Canv.itemconfigure(txt_id, text=vals[x])
