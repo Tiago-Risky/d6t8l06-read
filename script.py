@@ -1,24 +1,22 @@
 from threading import Thread
-from random import randint
 import tkinter
 import time
 import serial
 
-
-serialPort = '/dev/ttyUSB0'
+## Change this to your USB serial port
+serialPort = 'COM3'
 
 vals = [0] * 8
 valPTAT = 0
 debug = True
+kill = False
 
 class SerialThread(Thread):
- 
-    def __init__(self, val):
-        Thread.__init__(self)
-        self.val = val
-        
     def run(self):
-        while True:
+        conn = None
+        
+        global kill
+        while not kill:
             print("Attempting to connect")
             try:
                 global serialPort
@@ -28,10 +26,9 @@ class SerialThread(Thread):
                 print("Fail to connect: {}".format(e))
                 time.sleep(3)
         time.sleep(2)
-
         print("Listening")
 
-        while True:
+        while not kill and conn!=None:
             global valPTAT
             ler = conn.readline().decode()
             ler = ler.strip()
@@ -44,16 +41,16 @@ class SerialThread(Thread):
             if debug:
                 print("Values: {}".format(vals))
                 print("PTAT Value: {}".format(valPTAT))
+        
+        if conn != None:
+            conn.close()
+            print("Connection closed")
 
 
 
 class WindowThread(Thread):
- 
-    def __init__(self, val):
-        Thread.__init__(self)
-        self.val = val
-        
     def run(self):
+        global kill
         window = tkinter.Tk()
         window.title("D6T-8L-06 value reading")
         window.geometry("490x120")
@@ -70,10 +67,6 @@ class WindowThread(Thread):
             subCoord[3] = marginSize+squareSize
             coord[x] = subCoord
 
-        #Previous manually written approach using 10 margin and 50 squaresize...    
-        #coord = [[10, 10, 60, 60], [70, 10, 120, 60], [130, 10, 180, 60],[190, 10, 240, 60],
-         #       [250, 10, 300, 60], [310, 10, 360, 60], [370, 10, 420, 60], [430, 10, 480, 60]]
-
         for x in range(8):
             c = coord[x]
             tagRect = "rect"+str(x)
@@ -84,51 +77,68 @@ class WindowThread(Thread):
         Canv.create_text((marginSize+(squareSize/2),(marginSize*3)+squareSize), text=valPTAT, tags="textPTAT")
 
         def ticktock():
-            for x in range(8):
-                tagRect = "rect"+str(x)
-                tagText = "text"+str(x)
-                rectItem = Canv.find_withtag(tagRect)
-                txtItem = Canv.find_withtag(tagText)
-                if rectItem:
-                    rect_id = rectItem[0]
-                    valInt = int(vals[x])
-                    if 10 > valInt:
-                        Canv.itemconfigure(rect_id, fill="light cyan")
-                    elif 20 > valInt >= 10:
-                        Canv.itemconfigure(rect_id, fill="gold")
-                    elif 25 > valInt >= 20:
-                        Canv.itemconfigure(rect_id, fill="orange")
-                    elif 30 > valInt >= 25:
-                        Canv.itemconfigure(rect_id, fill="dark orange")
-                    else:
-                        Canv.itemconfigure(rect_id, fill="red")
-                
+            if not kill:
+                for x in range(8):
+                    tagRect = "rect"+str(x)
+                    tagText = "text"+str(x)
+                    rectItem = Canv.find_withtag(tagRect)
+                    txtItem = Canv.find_withtag(tagText)
+                    if rectItem:
+                        rect_id = rectItem[0]
+                        valInt = int(vals[x])
+                        if 10 > valInt:
+                            Canv.itemconfigure(rect_id, fill="light cyan")
+                        elif 20 > valInt >= 10:
+                            Canv.itemconfigure(rect_id, fill="gold")
+                        elif 25 > valInt >= 20:
+                            Canv.itemconfigure(rect_id, fill="orange")
+                        elif 30 > valInt >= 25:
+                            Canv.itemconfigure(rect_id, fill="dark orange")
+                        else:
+                            Canv.itemconfigure(rect_id, fill="red")
+                    
+                    if txtItem:
+                        txt_id = txtItem[0]
+                        Canv.itemconfigure(txt_id, text=vals[x])
+                txtItem = Canv.find_withtag("textPTAT")
                 if txtItem:
                     txt_id = txtItem[0]
-                    Canv.itemconfigure(txt_id, text=vals[x])
-            txtItem = Canv.find_withtag("textPTAT")
-            if txtItem:
-                txt_id = txtItem[0]
-                Canv.itemconfigure(txt_id, text=valPTAT)
+                    Canv.itemconfigure(txt_id, text=valPTAT)
 
-            window.after(1000, ticktock)
+                window.after(1000, ticktock)
+            else:
+                window.destroy()
+                window.quit()
+                print("Window Closed")
 
+        def closeWindow():
+            global kill
+            kill = True
+            
         ticktock()
 
         Canv.pack()
+        window.protocol("WM_DELETE_WINDOW", closeWindow)
         window.mainloop()
 
 
 if __name__ == '__main__':
-    thread1 = SerialThread(1)
+    thread1 = SerialThread()
     thread1.setName('Thread 1')
  
-    thread2 = WindowThread(2)
+    thread2 = WindowThread()
     thread2.setName('Thread 2')
+
     thread1.start()
     thread2.start()
- 
-    thread1.join()
-    thread2.join()
- 
-    print('Main Terminating...')
+
+    #Locking mainthread while thread1 and 2 are still alive
+    #This means the program won't terminate until a thread
+    #crashes/closes or until we catch the KeyboardInterrupt
+    #that will signal both threads to kill themselves correctly
+    try:
+        while(thread1.is_alive and thread2.is_alive and not kill):
+            time.sleep(1)
+    except KeyboardInterrupt:
+            kill = True
+            print("Stopping every task")
